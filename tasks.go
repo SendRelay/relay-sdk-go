@@ -151,3 +151,14 @@ func (s *TasksService) Dispute(ctx context.Context, taskID string, req DisputeRe
 	out := new(DisputeTaskResponse)
 	return out, s.c.do(ctx, request{method: http.MethodPost, path: "/sdk/tasks/" + id + "/dispute", body: req}, out)
 }
+
+// SimulateAdvance opens a SCHEDULED task's search now instead of at its SearchStartsAt, so a
+// booking can be rehearsed without waiting. Test keys only.
+func (s *TasksService) SimulateAdvance(ctx context.Context, taskID string) (*SimulateAdvanceResponse, error) {
+	id, err := pathID("taskId", taskID)
+	if err != nil {
+		return nil, err
+	}
+	out := new(SimulateAdvanceResponse)
+	return out, s.c.do(ctx, request{method: http.MethodPost, path: "/sdk/tasks/" + id + "/simulate/advance"}, out)
+}

@@ -14,10 +14,16 @@ const (
 	TaskTypeErrand          TaskType = "ERRAND"
 )
 
+// TaskStatus is a task's lifecycle status. Relay adds statuses over time, so a value not listed
+// below can arrive: handle the ones you know and treat any other as still in progress.
 type TaskStatus string
 
 const (
-	TaskStatusPending       TaskStatus = "PENDING"
+	// TaskStatusScheduled: booked for a pickup time (dispatch SCHEDULED); not looking yet.
+	TaskStatusScheduled TaskStatus = "SCHEDULED"
+	TaskStatusPending   TaskStatus = "PENDING"
+	// TaskStatusSearching: still looking for a rider after the first offers.
+	TaskStatusSearching     TaskStatus = "SEARCHING"
 	TaskStatusOffered       TaskStatus = "OFFERED"
 	TaskStatusAssigned      TaskStatus = "ASSIGNED"
 	TaskStatusInProgress    TaskStatus = "IN_PROGRESS"
@@ -38,9 +44,15 @@ type Location struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 	Address   string  `json:"address"`
+	// CountryCode is an ISO 3166-1 alpha-2 code such as "NG"; not used in pricing yet.
+	CountryCode *string `json:"countryCode,omitempty"`
+	// PostalCode is not used in pricing yet.
+	PostalCode *string `json:"postalCode,omitempty"`
 }
 
 type Item struct {
+	// Reference is your own id for the parcel, so it can be followed across legs later.
+	Reference           *string `json:"reference,omitempty"`
 	Name                string  `json:"name"`
 	Description         *string `json:"description,omitempty"`
 	EstimatedValue      int64   `json:"estimatedValue"`
@@ -88,25 +100,74 @@ type CompletionCodeRequest struct {
 	Length int    `json:"length,omitempty"`
 }
 
+// DispatchStrategy is when Relay looks for a rider. Relay may add strategies; an unknown one
+// arrives as its raw string.
+type DispatchStrategy string
+
+const (
+	// DispatchImmediate offers to nearby riders now (about two minutes). The default.
+	DispatchImmediate DispatchStrategy = "IMMEDIATE"
+	// DispatchWaitForRider keeps offering as riders come online nearby, up to MaxWaitMinutes.
+	DispatchWaitForRider DispatchStrategy = "WAIT_FOR_RIDER"
+	// DispatchScheduled books for PickupAt, 45 minutes to 7 days ahead, priced for then.
+	DispatchScheduled DispatchStrategy = "SCHEDULED"
+)
+
+// DispatchRequest is `dispatch` on create and quote; leave it nil for IMMEDIATE. It is part of the
+// quote lock. WAIT_FOR_RIDER needs MaxWaitMinutes (5-720, food 5-45); SCHEDULED needs PickupAt
+// (RFC 3339 with an offset) and takes PickupWindowMinutes (default 30, at most 120).
+type DispatchRequest struct {
+	Strategy            DispatchStrategy `json:"strategy"`
+	MaxWaitMinutes      int              `json:"maxWaitMinutes,omitempty"`
+	PickupAt            string           `json:"pickupAt,omitempty"`
+	PickupWindowMinutes int              `json:"pickupWindowMinutes,omitempty"`
+}
+
+// TaskDispatch is the dispatch block on every task: the strategy and its search window.
+type TaskDispatch struct {
+	Strategy            DispatchStrategy `json:"strategy"`
+	MaxWaitMinutes      *int             `json:"maxWaitMinutes"`
+	PickupAt            *string          `json:"pickupAt"`
+	PickupWindowMinutes *int             `json:"pickupWindowMinutes"`
+	SearchStartsAt      string           `json:"searchStartsAt"`
+	// SearchExpiresAt is nil for IMMEDIATE: the offer waves decide.
+	SearchExpiresAt *string `json:"searchExpiresAt"`
+	OfferRounds     int     `json:"offerRounds"`
+}
+
 type TaskQuoteRequest struct {
-	TaskType    TaskType     `json:"taskType"`
-	Priority    string       `json:"priority,omitempty"`
-	Stages      []Stage      `json:"stages"`
-	Preferences *Preferences `json:"preferences,omitempty"`
+	TaskType    TaskType         `json:"taskType"`
+	Priority    string           `json:"priority,omitempty"`
+	Stages      []Stage          `json:"stages"`
+	Preferences *Preferences     `json:"preferences,omitempty"`
+	Dispatch    *DispatchRequest `json:"dispatch,omitempty"`
 }
 
 type CreateTaskRequest struct {
-	TaskType          TaskType               `json:"taskType"`
-	Priority          string                 `json:"priority,omitempty"`
-	Stages            []Stage                `json:"stages"`
-	AutoAssign        *bool                  `json:"autoAssign,omitempty"`
-	PaymentMethod     string                 `json:"paymentMethod,omitempty"`
-	Notes             string                 `json:"notes,omitempty"`
-	ExternalID        string                 `json:"externalId,omitempty"`
-	QuoteID           string                 `json:"quoteId,omitempty"`
-	Preferences       *Preferences           `json:"preferences,omitempty"`
-	CompletionCode    *CompletionCodeRequest `json:"completionCode,omitempty"`
-	SimulationOutcome string                 `json:"simulationOutcome,omitempty"`
+	TaskType       TaskType               `json:"taskType"`
+	Priority       string                 `json:"priority,omitempty"`
+	Stages         []Stage                `json:"stages"`
+	AutoAssign     *bool                  `json:"autoAssign,omitempty"`
+	PaymentMethod  string                 `json:"paymentMethod,omitempty"`
+	Notes          string                 `json:"notes,omitempty"`
+	ExternalID     string                 `json:"externalId,omitempty"`
+	QuoteID        string                 `json:"quoteId,omitempty"`
+	Preferences    *Preferences           `json:"preferences,omitempty"`
+	CompletionCode *CompletionCodeRequest `json:"completionCode,omitempty"`
+	Dispatch       *DispatchRequest       `json:"dispatch,omitempty"`
+	// SimulationOutcome is for test keys. SEARCH_THEN_ASSIGNED and SEARCH_EXPIRED need
+	// WAIT_FOR_RIDER or SCHEDULED.
+	SimulationOutcome string `json:"simulationOutcome,omitempty"`
+}
+
+// SimulateAdvanceResponse is the reply to Tasks.SimulateAdvance (test keys).
+type SimulateAdvanceResponse struct {
+	Message string `json:"message"`
+	TaskID  string `json:"taskId"`
+	// Status is still SCHEDULED; the task moves to PENDING within seconds.
+	Status          TaskStatus `json:"status"`
+	SearchStartsAt  string     `json:"searchStartsAt"`
+	SearchExpiresAt string     `json:"searchExpiresAt"`
 }
 
 type RiderSnippet struct {
@@ -181,6 +242,7 @@ type Task struct {
 	CompletionCodeLength   *int                `json:"completionCodeLength"`
 	CompletionCode         *TaskCompletionCode `json:"completionCode,omitempty"`
 	Rider                  *RiderSnippet       `json:"rider,omitempty"`
+	Dispatch               TaskDispatch        `json:"dispatch"`
 }
 
 // TaskLiveEta is how far the rider is from the stop they are heading to, from the road route

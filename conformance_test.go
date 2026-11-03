@@ -138,6 +138,9 @@ var bindings = map[string]func(ctx context.Context, c *Client, f fixture) (any, 
 	"tasks.dispute": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		return c.Tasks.Dispute(ctx, f.Input.TaskID, decode[DisputeRequest](f.Input.Body))
 	},
+	"tasks.simulateAdvance": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.SimulateAdvance(ctx, f.Input.TaskID)
+	},
 	"webhooks.create": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		return c.Webhooks.Create(ctx, decode[CreateWebhookRequest](f.Input.Body))
 	},
