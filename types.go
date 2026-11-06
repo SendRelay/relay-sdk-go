@@ -279,11 +279,11 @@ type GetTaskResponse struct {
 // PricingBreakdown is the price of a delivery. Fees holds every line as the API sent it,
 // including fee lines not named here (insuranceFee, temporalFee, ...).
 type PricingBreakdown struct {
-	Total              int64          `json:"total"`
-	Subtotal           int64          `json:"subtotal"`
-	Tax                int64          `json:"tax"`
-	PlatformFee        int64          `json:"platformFee"`
-	PriorityFee        int64          `json:"priorityFee"`
+	Total       int64 `json:"total"`
+	Subtotal    int64 `json:"subtotal"`
+	Tax         int64 `json:"tax"`
+	PlatformFee int64 `json:"platformFee"`
+	PriorityFee int64 `json:"priorityFee"`
 	// InsuranceFee is the premium, 0 when the task is not insured. It is included in Subtotal and Total.
 	InsuranceFee int64 `json:"insuranceFee"`
 	// InsuredValue is the declared value the premium covers, in kobo.
