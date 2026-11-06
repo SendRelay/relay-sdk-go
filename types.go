@@ -141,6 +141,9 @@ type TaskQuoteRequest struct {
 	Stages      []Stage          `json:"stages"`
 	Preferences *Preferences     `json:"preferences,omitempty"`
 	Dispatch    *DispatchRequest `json:"dispatch,omitempty"`
+	// Insured is insurance on the items' declared values. Leave it nil for the default, on. A pointer
+	// to false turns it off for this task: no premium, and loss or damage is not covered.
+	Insured *bool `json:"insured,omitempty"`
 }
 
 type CreateTaskRequest struct {
@@ -155,6 +158,9 @@ type CreateTaskRequest struct {
 	Preferences    *Preferences           `json:"preferences,omitempty"`
 	CompletionCode *CompletionCodeRequest `json:"completionCode,omitempty"`
 	Dispatch       *DispatchRequest       `json:"dispatch,omitempty"`
+	// Insured is insurance on the items' declared values. Leave it nil for the default, on. A pointer
+	// to false turns it off for this task; send the same value you quoted.
+	Insured *bool `json:"insured,omitempty"`
 	// SimulationOutcome is for test keys. SEARCH_THEN_ASSIGNED and SEARCH_EXPIRED need
 	// WAIT_FOR_RIDER or SCHEDULED.
 	SimulationOutcome string `json:"simulationOutcome,omitempty"`
@@ -278,6 +284,10 @@ type PricingBreakdown struct {
 	Tax                int64          `json:"tax"`
 	PlatformFee        int64          `json:"platformFee"`
 	PriorityFee        int64          `json:"priorityFee"`
+	// InsuranceFee is the premium, 0 when the task is not insured. It is included in Subtotal and Total.
+	InsuranceFee int64 `json:"insuranceFee"`
+	// InsuredValue is the declared value the premium covers, in kobo.
+	InsuredValue       int64          `json:"insuredValue"`
 	PricingVehicleType string         `json:"pricingVehicleType,omitempty"`
 	SurgeMultiplier    float64        `json:"surgeMultiplier,omitempty"`
 	Route              map[string]any `json:"route,omitempty"`

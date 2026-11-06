@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.0 — 2026-11-06
+
+- Insurance on tasks: `Insured` on `CreateTaskRequest` and `TaskQuoteRequest`. Leave it nil for the default, on; a pointer to false turns it off for that task.
+- `InsuranceFee` and `InsuredValue` on `PricingBreakdown`. The premium is now its own line: VAT applies to it, and fare premiums and the platform fee no longer do.
+
 ## 1.8.0 — 2026-11-03
 
 - Keep looking for a rider and scheduled pickups ([dispatch strategies](https://docs.sendrelay.com.ng/tasks/keep-looking-and-scheduling)).
