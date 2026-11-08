@@ -57,6 +57,17 @@ func (s *WebhooksService) Delete(ctx context.Context, webhookID string) (*Webhoo
 	return out, s.c.do(ctx, request{method: http.MethodDelete, path: "/sdk/webhooks/" + id}, out)
 }
 
+// Redeliver sends a logged event to this endpoint again, with the same event ID, so your dedupe
+// still applies. Events are kept for 30 days.
+func (s *WebhooksService) Redeliver(ctx context.Context, webhookID string, req RedeliverWebhookRequest) (*RedeliverWebhookResponse, error) {
+	id, err := pathID("webhookId", webhookID)
+	if err != nil {
+		return nil, err
+	}
+	out := new(RedeliverWebhookResponse)
+	return out, s.c.do(ctx, request{method: http.MethodPost, path: "/sdk/webhooks/" + id + "/redeliver", body: req}, out)
+}
+
 // DefaultWebhookTolerance is how old a delivery may be before VerifyWebhookSignature rejects it.
 const DefaultWebhookTolerance = 300 * time.Second
 

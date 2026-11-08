@@ -107,6 +107,10 @@ type Client struct {
 	Webhooks *WebhooksService
 	Auth     *AuthService
 	Presence *PresenceService
+	// Events reads the event log (every event about your tasks and payments, kept 30 days).
+	Events *EventsService
+	// Claims files and follows insurance claims on a task.
+	Claims *ClaimsService
 }
 
 // NewClient creates a client for a live (sk_live_...) or test (sk_test_...) API key.
@@ -137,6 +141,8 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Webhooks = &WebhooksService{c}
 	c.Auth = &AuthService{c}
 	c.Presence = &PresenceService{c}
+	c.Events = &EventsService{c}
+	c.Claims = &ClaimsService{c}
 	return c, nil
 }
 

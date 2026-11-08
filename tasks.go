@@ -47,6 +47,9 @@ func (s *TasksService) List(ctx context.Context, params *ListTasksParams) (*List
 		if params.Cursor != "" {
 			q.Set("cursor", params.Cursor)
 		}
+		if params.UpdatedSince != "" {
+			q.Set("updatedSince", params.UpdatedSince)
+		}
 	}
 	out := new(ListTasksResponse)
 	return out, s.c.do(ctx, request{method: http.MethodGet, path: "/sdk/tasks", query: q}, out)
@@ -92,6 +95,41 @@ func (s *TasksService) Get(ctx context.Context, taskID string) (*GetTaskResponse
 	}
 	out := new(GetTaskResponse)
 	return out, s.c.do(ctx, request{method: http.MethodGet, path: "/sdk/tasks/" + id}, out)
+}
+
+// Update changes Notes, ExternalID, or a stop's Instructions and Contact until that stop is
+// completed. Anything affecting price or dispatch is refused with FIELD_NOT_EDITABLE.
+func (s *TasksService) Update(ctx context.Context, taskID string, req UpdateTaskRequest) (*UpdateTaskResponse, error) {
+	id, err := pathID("taskId", taskID)
+	if err != nil {
+		return nil, err
+	}
+	out := new(UpdateTaskResponse)
+	return out, s.c.do(ctx, request{method: http.MethodPatch, path: "/sdk/tasks/" + id, body: req}, out)
+}
+
+// TrackingLink returns a hosted tracking page to send your customer. req may be nil.
+func (s *TasksService) TrackingLink(ctx context.Context, taskID string, req *TrackingLinkRequest) (*TrackingLinkResponse, error) {
+	id, err := pathID("taskId", taskID)
+	if err != nil {
+		return nil, err
+	}
+	body := TrackingLinkRequest{}
+	if req != nil {
+		body = *req
+	}
+	out := new(TrackingLinkResponse)
+	return out, s.c.do(ctx, request{method: http.MethodPost, path: "/sdk/tasks/" + id + "/tracking-link", body: body}, out)
+}
+
+// Events returns every event about a task, oldest first, each with its data.revision.
+func (s *TasksService) Events(ctx context.Context, taskID string) (*TaskEventsResponse, error) {
+	id, err := pathID("taskId", taskID)
+	if err != nil {
+		return nil, err
+	}
+	out := new(TaskEventsResponse)
+	return out, s.c.do(ctx, request{method: http.MethodGet, path: "/sdk/tasks/" + id + "/events"}, out)
 }
 
 // Cancel cancels a task that hasn't been picked up. req may be nil.

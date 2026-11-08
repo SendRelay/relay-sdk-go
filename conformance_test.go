@@ -103,7 +103,7 @@ var bindings = map[string]func(ctx context.Context, c *Client, f fixture) (any, 
 		return c.Tasks.Create(ctx, decode[CreateTaskRequest](f.Input.Body), opts)
 	},
 	"tasks.list": func(ctx context.Context, c *Client, f fixture) (any, error) {
-		return c.Tasks.List(ctx, &ListTasksParams{Limit: queryInt(f.Input.Query, "limit"), Order: queryString(f.Input.Query, "order"), Cursor: queryString(f.Input.Query, "cursor")})
+		return c.Tasks.List(ctx, &ListTasksParams{Limit: queryInt(f.Input.Query, "limit"), Order: queryString(f.Input.Query, "order"), Cursor: queryString(f.Input.Query, "cursor"), UpdatedSince: queryString(f.Input.Query, "updatedSince")})
 	},
 	"tasks.listAll": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		ids := []string{}
@@ -164,6 +164,59 @@ var bindings = map[string]func(ctx context.Context, c *Client, f fixture) (any, 
 		lng, _ := f.Input.Query["longitude"].(float64)
 		return c.Presence.Get(ctx, PresenceParams{Latitude: lat, Longitude: lng, Resolution: queryString(f.Input.Query, "resolution")})
 	},
+	"tasks.update": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.Update(ctx, f.Input.TaskID, decode[UpdateTaskRequest](f.Input.Body))
+	},
+	"tasks.trackingLink": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		req := decode[TrackingLinkRequest](f.Input.Body)
+		return c.Tasks.TrackingLink(ctx, f.Input.TaskID, &req)
+	},
+	"tasks.events": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.Events(ctx, f.Input.TaskID)
+	},
+	"events.list": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Events.List(ctx, eventParams(f.Input.Query))
+	},
+	"events.listAll": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		ids := []string{}
+		for event, err := range c.Events.ListAll(ctx, eventParams(f.Input.Query)) {
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, event.ID)
+		}
+		return ids, nil
+	},
+	"webhooks.redeliver": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Webhooks.Redeliver(ctx, f.Input.WebhookID, decode[RedeliverWebhookRequest](f.Input.Body))
+	},
+	"claims.get": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Claims.Get(ctx, f.Input.TaskID)
+	},
+	"claims.createUpload": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Claims.CreateUpload(ctx, f.Input.TaskID, decode[CreateClaimUploadRequest](f.Input.Body))
+	},
+	"claims.file": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Claims.File(ctx, f.Input.TaskID, decode[FileClaimRequest](f.Input.Body))
+	},
+	"claims.respond": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Claims.Respond(ctx, f.Input.TaskID, decode[RespondToClaimRequest](f.Input.Body))
+	},
+	"claims.withdraw": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Claims.Withdraw(ctx, f.Input.TaskID)
+	},
+}
+
+func eventParams(q map[string]any) *ListEventsParams {
+	p := &ListEventsParams{Limit: queryInt(q, "limit"), Order: queryString(q, "order"), Cursor: queryString(q, "cursor")}
+	if types, ok := q["types"].([]any); ok {
+		for _, t := range types {
+			if s, ok := t.(string); ok {
+				p.Types = append(p.Types, s)
+			}
+		}
+	}
+	return p
 }
 
 func lookup(value any, dotted string) any {

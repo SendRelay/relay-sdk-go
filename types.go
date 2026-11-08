@@ -80,6 +80,36 @@ type Stage struct {
 	CompletedAt     *string     `json:"completedAt,omitempty"`
 	CompletionPhoto *string     `json:"completionPhoto,omitempty"`
 	CompletionNotes *string     `json:"completionNotes,omitempty"`
+	// Contact is who to call at this stop; shown only to the assigned rider, and returned to you.
+	Contact *StageContact `json:"contact,omitempty"`
+	// DeliverItems (DROPOFF only) lists the Item.Reference values to hand over here.
+	DeliverItems []string `json:"deliverItems,omitempty"`
+	// CompletionCode: on a request, a code the rider must enter here (set Code or Length). On create
+	// and get responses, this stop's code. Never sent to the rider.
+	CompletionCode *StageCompletionCode `json:"completionCode,omitempty"`
+	// CompletionCodeLength (response) is the digits of this stop's code, when it has one.
+	CompletionCodeLength *int `json:"completionCodeLength,omitempty"`
+	// ArrivedAt (response) is when the rider reached the stop; nil if not detected.
+	ArrivedAt *string `json:"arrivedAt,omitempty"`
+	// WaitSeconds (response) runs from ArrivedAt to CompletedAt; information only.
+	WaitSeconds *int `json:"waitSeconds,omitempty"`
+}
+
+// StageContact is who to call at a stop.
+type StageContact struct {
+	Name  *string `json:"name,omitempty"`
+	Phone string  `json:"phone"`
+}
+
+// StageCompletionCode is a stop's code: Code or Length on a request; every field on a response.
+type StageCompletionCode struct {
+	Code           string  `json:"code,omitempty"`
+	Length         int     `json:"length,omitempty"`
+	Source         string  `json:"source,omitempty"`
+	Status         string  `json:"status,omitempty"`
+	FailedAttempts int     `json:"failedAttempts,omitempty"`
+	LockedUntil    *string `json:"lockedUntil,omitempty"`
+	VerifiedAt     *string `json:"verifiedAt,omitempty"`
 }
 
 type Preferences struct {
@@ -121,6 +151,12 @@ type DispatchRequest struct {
 	MaxWaitMinutes      int              `json:"maxWaitMinutes,omitempty"`
 	PickupAt            string           `json:"pickupAt,omitempty"`
 	PickupWindowMinutes int              `json:"pickupWindowMinutes,omitempty"`
+	// ReadyAt (IMMEDIATE and WAIT_FOR_RIDER, at most 45 minutes ahead) is when the pickup will be
+	// ready; the search opens in time to arrive then, and the task waits as SCHEDULED until it does.
+	ReadyAt string `json:"readyAt,omitempty"`
+	// OnRiderCancel is "CANCEL" (default: the task ends and is refunded) or "FIND_ANOTHER" (Relay
+	// looks again, at most twice; needs AutoAssign).
+	OnRiderCancel string `json:"onRiderCancel,omitempty"`
 }
 
 // TaskDispatch is the dispatch block on every task: the strategy and its search window.
@@ -133,6 +169,8 @@ type TaskDispatch struct {
 	// SearchExpiresAt is nil for IMMEDIATE: the offer waves decide.
 	SearchExpiresAt *string `json:"searchExpiresAt"`
 	OfferRounds     int     `json:"offerRounds"`
+	ReadyAt         *string `json:"readyAt,omitempty"`
+	OnRiderCancel   string  `json:"onRiderCancel,omitempty"`
 }
 
 type TaskQuoteRequest struct {
@@ -161,8 +199,10 @@ type CreateTaskRequest struct {
 	// Insured is insurance on the items' declared values. Leave it nil for the default, on. A pointer
 	// to false turns it off for this task; send the same value you quoted.
 	Insured *bool `json:"insured,omitempty"`
+	// RequirePhoto asks for a completion photo at every DROPOFF.
+	RequirePhoto bool `json:"requirePhoto,omitempty"`
 	// SimulationOutcome is for test keys. SEARCH_THEN_ASSIGNED and SEARCH_EXPIRED need
-	// WAIT_FOR_RIDER or SCHEDULED.
+	// WAIT_FOR_RIDER or SCHEDULED; RIDER_CANCELS_THEN_REASSIGNED needs OnRiderCancel FIND_ANOTHER.
 	SimulationOutcome string `json:"simulationOutcome,omitempty"`
 }
 
@@ -214,41 +254,48 @@ type TaskCompletionCode struct {
 }
 
 type Task struct {
-	ID                     string              `json:"id"`
-	DeveloperID            string              `json:"developerId"`
-	RiderID                *string             `json:"riderId"`
-	ExternalID             *string             `json:"externalId"`
-	Status                 TaskStatus          `json:"status"`
-	TaskType               TaskType            `json:"taskType"`
-	Priority               string              `json:"priority"`
-	Source                 string              `json:"source,omitempty"`
-	AutoAssign             bool                `json:"autoAssign"`
-	CurrentStageIndex      *int                `json:"currentStageIndex"`
-	Notes                  *string             `json:"notes"`
-	Preferences            *Preferences        `json:"preferences"`
-	Stages                 []Stage             `json:"stages"`
-	DeliveryFee            int64               `json:"deliveryFee"`
-	TotalFee               int64               `json:"totalFee"`
-	PaymentStatus          *string             `json:"paymentStatus"`
-	PaymentMethod          string              `json:"paymentMethod"`
-	Pricing                map[string]any      `json:"pricing"`
-	CreatedAt              string              `json:"createdAt"`
-	UpdatedAt              string              `json:"updatedAt"`
-	OfferedAt              *string             `json:"offeredAt"`
-	AcceptedAt             *string             `json:"acceptedAt"`
-	AssignedAt             *string             `json:"assignedAt"`
-	CompletedAt            *string             `json:"completedAt"`
-	FailedAt               *string             `json:"failedAt"`
-	CancelledAt            *string             `json:"cancelledAt"`
-	FailureReason          *string             `json:"failureReason"`
-	DisputeID              *string             `json:"disputeId"`
-	Routing                *TaskRouting        `json:"routing"`
-	RoutePolyline          *string             `json:"routePolyline"`
-	CompletionCodeRequired bool                `json:"completionCodeRequired"`
-	CompletionCodeLength   *int                `json:"completionCodeLength"`
-	CompletionCode         *TaskCompletionCode `json:"completionCode,omitempty"`
-	Rider                  *RiderSnippet       `json:"rider,omitempty"`
-	Dispatch               TaskDispatch        `json:"dispatch"`
+	ID                     string         `json:"id"`
+	DeveloperID            string         `json:"developerId"`
+	RiderID                *string        `json:"riderId"`
+	ExternalID             *string        `json:"externalId"`
+	Status                 TaskStatus     `json:"status"`
+	TaskType               TaskType       `json:"taskType"`
+	Priority               string         `json:"priority"`
+	Source                 string         `json:"source,omitempty"`
+	AutoAssign             bool           `json:"autoAssign"`
+	CurrentStageIndex      *int           `json:"currentStageIndex"`
+	Notes                  *string        `json:"notes"`
+	Preferences            *Preferences   `json:"preferences"`
+	Stages                 []Stage        `json:"stages"`
+	DeliveryFee            int64          `json:"deliveryFee"`
+	TotalFee               int64          `json:"totalFee"`
+	PaymentStatus          *string        `json:"paymentStatus"`
+	PaymentMethod          string         `json:"paymentMethod"`
+	Pricing                map[string]any `json:"pricing"`
+	CreatedAt              string         `json:"createdAt"`
+	UpdatedAt              string         `json:"updatedAt"`
+	OfferedAt              *string        `json:"offeredAt"`
+	AcceptedAt             *string        `json:"acceptedAt"`
+	AssignedAt             *string        `json:"assignedAt"`
+	CompletedAt            *string        `json:"completedAt"`
+	FailedAt               *string        `json:"failedAt"`
+	CancelledAt            *string        `json:"cancelledAt"`
+	FailureReason          *string        `json:"failureReason"`
+	DisputeID              *string        `json:"disputeId"`
+	Routing                *TaskRouting   `json:"routing"`
+	RoutePolyline          *string        `json:"routePolyline"`
+	CompletionCodeRequired bool           `json:"completionCodeRequired"`
+	CompletionCodeLength   *int           `json:"completionCodeLength"`
+	// Revision goes up with every event about the task and matches the events' data.revision.
+	// Store it and apply a webhook only if its revision is higher. 0 before the first event.
+	Revision int `json:"revision"`
+	// Currency of every amount on the task, in minor units (kobo for NGN).
+	Currency string `json:"currency"`
+	// RequirePhoto: a completion photo is required at every DROPOFF.
+	RequirePhoto   bool                `json:"requirePhoto"`
+	CompletionCode *TaskCompletionCode `json:"completionCode,omitempty"`
+	Rider          *RiderSnippet       `json:"rider,omitempty"`
+	Dispatch       TaskDispatch        `json:"dispatch"`
 }
 
 // TaskLiveEta is how far the rider is from the stop they are heading to, from the road route
@@ -371,6 +418,9 @@ type ListTasksParams struct {
 	Cursor string
 	// Order is "asc" or "desc" (default).
 	Order string
+	// UpdatedSince (ISO 8601) lists only tasks changed at or after that time, in UpdatedAt order.
+	// For reconciliation: walk forward with Order "asc" and keep the latest UpdatedAt you saw.
+	UpdatedSince string
 }
 
 type TaskListItem struct {
@@ -388,6 +438,9 @@ type TaskListItem struct {
 	CreatedAt              string     `json:"createdAt"`
 	CompletionCodeRequired bool       `json:"completionCodeRequired"`
 	CompletionCodeLength   *int       `json:"completionCodeLength"`
+	UpdatedAt              string     `json:"updatedAt,omitempty"`
+	Revision               int        `json:"revision"`
+	Currency               string     `json:"currency,omitempty"`
 }
 
 type ListTasksResponse struct {
@@ -579,4 +632,83 @@ type PresenceResponse struct {
 	Capped              bool   `json:"capped"`
 	GeneratedAt         string `json:"generatedAt"`
 	RefreshAfterSeconds int    `json:"refreshAfterSeconds"`
+}
+
+// Event is one event exactly as its webhook carried it: same ID, Type, Timestamp and Data.
+// Task events carry data.revision. Events are kept for 30 days.
+type Event struct {
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`
+	Version   string         `json:"version"`
+	Timestamp string         `json:"timestamp"`
+	Data      map[string]any `json:"data"`
+	Metadata  EventMetadata  `json:"metadata"`
+}
+
+type EventMetadata struct {
+	DeveloperID string  `json:"developerId"`
+	TaskID      *string `json:"taskId,omitempty"`
+	RiderID     *string `json:"riderId,omitempty"`
+	Source      string  `json:"source"`
+	Mode        string  `json:"mode"`
+}
+
+type ListEventsParams struct {
+	Limit  int
+	Cursor string
+	// Order is "asc" (catch up, oldest first) or "desc" (default).
+	Order string
+	// Types limits the list to these webhook event types.
+	Types []string
+}
+
+type ListEventsResponse struct {
+	Data    []Event `json:"data"`
+	HasMore bool    `json:"hasMore"`
+	Cursor  *string `json:"cursor"`
+}
+
+type TaskEventsResponse struct {
+	Data []Event `json:"data"`
+}
+
+type RedeliverWebhookRequest struct {
+	EventID string `json:"eventId"`
+}
+
+type RedeliverWebhookResponse struct {
+	WebhookID string `json:"webhookId"`
+	EventID   string `json:"eventId"`
+	Queued    bool   `json:"queued"`
+}
+
+// UpdateTaskRequest is what Tasks.Update may change. Anything else is FIELD_NOT_EDITABLE.
+type UpdateTaskRequest struct {
+	Notes      *string           `json:"notes,omitempty"`
+	ExternalID *string           `json:"externalId,omitempty"`
+	Stages     []UpdateTaskStage `json:"stages,omitempty"`
+}
+
+// UpdateTaskStage edits one stop until it is completed.
+type UpdateTaskStage struct {
+	Index        int           `json:"index"`
+	Instructions *string       `json:"instructions,omitempty"`
+	Contact      *StageContact `json:"contact,omitempty"`
+}
+
+// UpdateTaskResponse is the task after an update.
+type UpdateTaskResponse struct {
+	Task Task `json:"task"`
+}
+
+// TrackingLinkRequest optionally limits a link to one DROPOFF.
+type TrackingLinkRequest struct {
+	StageIndex *int `json:"stageIndex,omitempty"`
+}
+
+// TrackingLinkResponse is a hosted tracking page to send your customer.
+type TrackingLinkResponse struct {
+	URL        string `json:"url"`
+	ExpiresAt  string `json:"expiresAt"`
+	StageIndex *int   `json:"stageIndex"`
 }
