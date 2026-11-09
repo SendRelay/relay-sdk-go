@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.0 — 2026-11-09
+
+- `Requirements` on `Task`, `TaskQuoteResponse` and `PresenceResponse` (`TaskRequirements`): each vehicle Relay looks for and the equipment a rider on it needs, for example a box on a motorcycle for food. See [the box a task needs](https://docs.sendrelay.com.ng/concepts/dispatch#the-box-a-task-needs).
+- `PresenceParams` takes a job: `TaskType`, `VehicleType`, `HasBox`, `HasRefrigeration`, `HasAirConditioning` (`*bool`, nil leaves them out), `EstimatedWeight` and `EstimatedSize`, with the quote's meanings. `Presence.Get` then counts only riders who could take that job. Without `TaskType` the map is unchanged.
+
 ## 1.10.0 — 2026-11-08
 
 - `Events.List` and `Events.ListAll`: the event log, every event for your account and mode, kept for 30 days. `Types` filters by event type.

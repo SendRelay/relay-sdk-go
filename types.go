@@ -296,6 +296,8 @@ type Task struct {
 	CompletionCode *TaskCompletionCode `json:"completionCode,omitempty"`
 	Rider          *RiderSnippet       `json:"rider,omitempty"`
 	Dispatch       TaskDispatch        `json:"dispatch"`
+	// Requirements: the vehicles Relay looks for and the equipment a rider on each needs.
+	Requirements *TaskRequirements `json:"requirements,omitempty"`
 }
 
 // TaskLiveEta is how far the rider is from the stop they are heading to, from the road route
@@ -371,6 +373,8 @@ type TaskQuoteResponse struct {
 	ExpiresAt       string           `json:"expiresAt"`
 	QuoteTTLSeconds int              `json:"quoteTtlSeconds"`
 	Task            TaskQuoteRequest `json:"task"`
+	// Requirements: what the task will need, as create will store it.
+	Requirements *TaskRequirements `json:"requirements,omitempty"`
 }
 
 func (q *TaskQuoteResponse) UnmarshalJSON(data []byte) error {
@@ -378,15 +382,17 @@ func (q *TaskQuoteResponse) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	var rest struct {
-		QuoteID         string           `json:"quoteId"`
-		ExpiresAt       string           `json:"expiresAt"`
-		QuoteTTLSeconds int              `json:"quoteTtlSeconds"`
-		Task            TaskQuoteRequest `json:"task"`
+		QuoteID         string            `json:"quoteId"`
+		ExpiresAt       string            `json:"expiresAt"`
+		QuoteTTLSeconds int               `json:"quoteTtlSeconds"`
+		Task            TaskQuoteRequest  `json:"task"`
+		Requirements    *TaskRequirements `json:"requirements"`
 	}
 	if err := json.Unmarshal(data, &rest); err != nil {
 		return err
 	}
 	q.QuoteID, q.ExpiresAt, q.QuoteTTLSeconds, q.Task = rest.QuoteID, rest.ExpiresAt, rest.QuoteTTLSeconds, rest.Task
+	q.Requirements = rest.Requirements
 	return nil
 }
 
@@ -400,6 +406,9 @@ func (q TaskQuoteResponse) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	out["quoteId"], out["expiresAt"], out["quoteTtlSeconds"], out["task"] = q.QuoteID, q.ExpiresAt, q.QuoteTTLSeconds, q.Task
+	if q.Requirements != nil {
+		out["requirements"] = q.Requirements
+	}
 	return json.Marshal(out)
 }
 
@@ -597,6 +606,30 @@ type PresenceParams struct {
 	Longitude float64
 	// Resolution is BLOCK, NEIGHBOURHOOD (default) or DISTRICT.
 	Resolution string
+	// TaskType counts only riders who could take that job; the fields below use the quote's
+	// meanings and apply only with it.
+	TaskType string
+	// VehicleType is sent as a comma-separated list.
+	VehicleType []string
+	// HasBox, HasRefrigeration and HasAirConditioning: nil leaves them out (Relay decides the box).
+	HasBox             *bool
+	HasRefrigeration   *bool
+	HasAirConditioning *bool
+	// EstimatedWeight and EstimatedSize describe the item; the smallest class when empty.
+	EstimatedWeight string
+	EstimatedSize   string
+}
+
+// TaskRequirements is what Relay looks for in a rider: each vehicle that can take the task, with
+// the equipment a rider on it needs (for example a box on a motorcycle for food).
+type TaskRequirements struct {
+	Vehicles []TaskRequirementsVehicle `json:"vehicles"`
+}
+
+type TaskRequirementsVehicle struct {
+	VehicleType string `json:"vehicleType"`
+	// Equipment holds BOX, REFRIGERATION or AIR_CONDITIONING; treat others as equipment you can't check.
+	Equipment []string `json:"equipment"`
 }
 
 type PresencePoint struct {
@@ -632,6 +665,8 @@ type PresenceResponse struct {
 	Capped              bool   `json:"capped"`
 	GeneratedAt         string `json:"generatedAt"`
 	RefreshAfterSeconds int    `json:"refreshAfterSeconds"`
+	// Requirements is set with TaskType: what the counted riders have, as the quote would return it.
+	Requirements *TaskRequirements `json:"requirements,omitempty"`
 }
 
 // Event is one event exactly as its webhook carried it: same ID, Type, Timestamp and Data.

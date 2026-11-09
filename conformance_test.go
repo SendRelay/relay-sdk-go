@@ -162,7 +162,22 @@ var bindings = map[string]func(ctx context.Context, c *Client, f fixture) (any, 
 	"presence.get": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		lat, _ := f.Input.Query["latitude"].(float64)
 		lng, _ := f.Input.Query["longitude"].(float64)
-		return c.Presence.Get(ctx, PresenceParams{Latitude: lat, Longitude: lng, Resolution: queryString(f.Input.Query, "resolution")})
+		params := PresenceParams{
+			Latitude: lat, Longitude: lng, Resolution: queryString(f.Input.Query, "resolution"),
+			TaskType: queryString(f.Input.Query, "taskType"), EstimatedWeight: queryString(f.Input.Query, "estimatedWeight"),
+			EstimatedSize: queryString(f.Input.Query, "estimatedSize"),
+		}
+		if list, ok := f.Input.Query["vehicleType"].([]any); ok {
+			for _, v := range list {
+				params.VehicleType = append(params.VehicleType, v.(string))
+			}
+		}
+		for key, target := range map[string]**bool{"hasBox": &params.HasBox, "hasRefrigeration": &params.HasRefrigeration, "hasAirConditioning": &params.HasAirConditioning} {
+			if v, ok := f.Input.Query[key].(bool); ok {
+				*target = &v
+			}
+		}
+		return c.Presence.Get(ctx, params)
 	},
 	"tasks.update": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		return c.Tasks.Update(ctx, f.Input.TaskID, decode[UpdateTaskRequest](f.Input.Body))

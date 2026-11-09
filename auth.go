@@ -42,13 +42,33 @@ func (s *AuthService) CreateWebSocketToken(ctx context.Context, req CreateWebSoc
 // PresenceService shows anonymous rider availability, for maps shown before creating a task.
 type PresenceService struct{ c *Client }
 
-// Get returns rider density around a point.
+// Get returns rider density around a point. With TaskType it counts only riders who could take
+// that job, and the response has Requirements.
 func (s *PresenceService) Get(ctx context.Context, params PresenceParams) (*PresenceResponse, error) {
 	q := url.Values{}
 	q.Set("latitude", strconv.FormatFloat(params.Latitude, 'f', -1, 64))
 	q.Set("longitude", strconv.FormatFloat(params.Longitude, 'f', -1, 64))
 	if params.Resolution != "" {
 		q.Set("resolution", params.Resolution)
+	}
+	if params.TaskType != "" {
+		q.Set("taskType", params.TaskType)
+	}
+	if len(params.VehicleType) > 0 {
+		q.Set("vehicleType", strings.Join(params.VehicleType, ","))
+	}
+	for key, value := range map[string]*bool{
+		"hasBox": params.HasBox, "hasRefrigeration": params.HasRefrigeration, "hasAirConditioning": params.HasAirConditioning,
+	} {
+		if value != nil {
+			q.Set(key, strconv.FormatBool(*value))
+		}
+	}
+	if params.EstimatedWeight != "" {
+		q.Set("estimatedWeight", params.EstimatedWeight)
+	}
+	if params.EstimatedSize != "" {
+		q.Set("estimatedSize", params.EstimatedSize)
 	}
 	out := new(PresenceResponse)
 	return out, s.c.do(ctx, request{method: http.MethodGet, path: "/sdk/presence", query: q}, out)
