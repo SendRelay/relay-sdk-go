@@ -1,7 +1,7 @@
 package relay
 
 // Runs the shared SDK conformance fixtures (packages/sdks/conformance) against this SDK. Every
-// Relay SDK runs the same fixtures, which is how they stay at parity.
+// SendRelay SDK runs the same fixtures, which is how they stay at parity.
 
 import (
 	"context"

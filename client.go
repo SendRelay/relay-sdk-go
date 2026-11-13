@@ -1,4 +1,4 @@
-// Package relay is the official Relay server SDK for Go: quote and create deliveries, read them
+// Package relay is the official SendRelay server SDK for Go: quote and create deliveries, read them
 // back with the rider's live ETA, manage webhooks and mint tracking tokens for your apps.
 //
 //	client, err := relay.NewClient(os.Getenv("RELAY_API_KEY"))
@@ -100,7 +100,7 @@ func WithHeaders(headers map[string]string) Option {
 // WithHTTPClient uses your own *http.Client, for proxies, tracing or tests.
 func WithHTTPClient(client *http.Client) Option { return func(c *config) { c.httpClient = client } }
 
-// Client is the Relay API client. It is safe for concurrent use.
+// Client is the SendRelay API client. It is safe for concurrent use.
 type Client struct {
 	cfg      config
 	Tasks    *TasksService

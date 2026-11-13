@@ -14,7 +14,7 @@ const (
 	TaskTypeErrand          TaskType = "ERRAND"
 )
 
-// TaskStatus is a task's lifecycle status. Relay adds statuses over time, so a value not listed
+// TaskStatus is a task's lifecycle status. SendRelay adds statuses over time, so a value not listed
 // below can arrive: handle the ones you know and treat any other as still in progress.
 type TaskStatus string
 
@@ -124,13 +124,13 @@ type Preferences struct {
 }
 
 // CompletionCodeRequest asks for proof of delivery: set Code to choose the digits, or Length
-// (4 or 6) to have Relay generate them.
+// (4 or 6) to have SendRelay generate them.
 type CompletionCodeRequest struct {
 	Code   string `json:"code,omitempty"`
 	Length int    `json:"length,omitempty"`
 }
 
-// DispatchStrategy is when Relay looks for a rider. Relay may add strategies; an unknown one
+// DispatchStrategy is when SendRelay looks for a rider. SendRelay may add strategies; an unknown one
 // arrives as its raw string.
 type DispatchStrategy string
 
@@ -154,7 +154,7 @@ type DispatchRequest struct {
 	// ReadyAt (IMMEDIATE and WAIT_FOR_RIDER, at most 45 minutes ahead) is when the pickup will be
 	// ready; the search opens in time to arrive then, and the task waits as SCHEDULED until it does.
 	ReadyAt string `json:"readyAt,omitempty"`
-	// OnRiderCancel is "CANCEL" (default: the task ends and is refunded) or "FIND_ANOTHER" (Relay
+	// OnRiderCancel is "CANCEL" (default: the task ends and is refunded) or "FIND_ANOTHER" (SendRelay
 	// looks again, at most twice; needs AutoAssign).
 	OnRiderCancel string `json:"onRiderCancel,omitempty"`
 }
@@ -296,7 +296,7 @@ type Task struct {
 	CompletionCode *TaskCompletionCode `json:"completionCode,omitempty"`
 	Rider          *RiderSnippet       `json:"rider,omitempty"`
 	Dispatch       TaskDispatch        `json:"dispatch"`
-	// Requirements: the vehicles Relay looks for and the equipment a rider on each needs.
+	// Requirements: the vehicles SendRelay looks for and the equipment a rider on each needs.
 	Requirements *TaskRequirements `json:"requirements,omitempty"`
 }
 
@@ -611,7 +611,7 @@ type PresenceParams struct {
 	TaskType string
 	// VehicleType is sent as a comma-separated list.
 	VehicleType []string
-	// HasBox, HasRefrigeration and HasAirConditioning: nil leaves them out (Relay decides the box).
+	// HasBox, HasRefrigeration and HasAirConditioning: nil leaves them out (SendRelay decides the box).
 	HasBox             *bool
 	HasRefrigeration   *bool
 	HasAirConditioning *bool
@@ -620,7 +620,7 @@ type PresenceParams struct {
 	EstimatedSize   string
 }
 
-// TaskRequirements is what Relay looks for in a rider: each vehicle that can take the task, with
+// TaskRequirements is what SendRelay looks for in a rider: each vehicle that can take the task, with
 // the equipment a rider on it needs (for example a box on a motorcycle for food).
 type TaskRequirements struct {
 	Vehicles []TaskRequirementsVehicle `json:"vehicles"`

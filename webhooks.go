@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// WebhooksService manages the endpoints Relay sends events to.
+// WebhooksService manages the endpoints SendRelay sends events to.
 type WebhooksService struct{ c *Client }
 
 // Create registers an endpoint. Store the returned Secret: it is shown only once.
@@ -78,7 +78,7 @@ type WebhookVerification struct {
 	Error string
 }
 
-// VerifyWebhookSignature checks that a webhook came from Relay and wasn't changed on the way.
+// VerifyWebhookSignature checks that a webhook came from SendRelay and wasn't changed on the way.
 // Pass the raw request body exactly as received, the X-Relay-Signature header, and the whsec_
 // secret from Create.
 //

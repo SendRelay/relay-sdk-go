@@ -121,7 +121,7 @@ func (s *ClaimsService) File(ctx context.Context, taskID string, req FileClaimRe
 	return out, s.c.do(ctx, request{method: http.MethodPost, path: path, body: req}, out)
 }
 
-// Respond answers Relay's request for more information, while the claim is NEEDS_INFO.
+// Respond answers SendRelay's request for more information, while the claim is NEEDS_INFO.
 func (s *ClaimsService) Respond(ctx context.Context, taskID string, req RespondToClaimRequest) (*Claim, error) {
 	path, err := claimPath(taskID)
 	if err != nil {
