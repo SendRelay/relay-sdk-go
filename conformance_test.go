@@ -61,6 +61,7 @@ type fixture struct {
 		Body           json.RawMessage `json:"body"`
 		Query          map[string]any  `json:"query"`
 		IdempotencyKey string          `json:"idempotencyKey"`
+		ExternalID     string          `json:"externalId"`
 	} `json:"input"`
 	Exchanges []exchange `json:"exchanges"`
 	Expect    struct {
@@ -117,6 +118,9 @@ var bindings = map[string]func(ctx context.Context, c *Client, f fixture) (any, 
 	},
 	"tasks.get": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		return c.Tasks.Get(ctx, f.Input.TaskID)
+	},
+	"tasks.getByExternalId": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.GetByExternalID(ctx, f.Input.ExternalID)
 	},
 	"tasks.cancel": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		var req *CancelTaskRequest
@@ -306,8 +310,8 @@ func (r *roundTrip) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Method != want.Request.Method {
 		r.t.Errorf("method: got %s, want %s", req.Method, want.Request.Method)
 	}
-	if req.URL.Path != want.Request.Path {
-		r.t.Errorf("path: got %s, want %s", req.URL.Path, want.Request.Path)
+	if req.URL.EscapedPath() != want.Request.Path {
+		r.t.Errorf("path: got %s, want %s", req.URL.EscapedPath(), want.Request.Path)
 	}
 	query := map[string]string{}
 	for k, v := range req.URL.Query() {

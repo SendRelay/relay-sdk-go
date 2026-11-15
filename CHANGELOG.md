@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.0 — 2026-11-15
+
+- `Tasks.GetByExternalID(ctx, externalID)`: the task with the `ExternalID` you gave it at create, as `Get` returns it, or `nil` with no error if none has it (`GET /v1/sdk/tasks/by-external-id/{externalId}`). The reference is percent-encoded, so it can hold a slash.
+
 ## 1.13.0 — 2026-11-15
 
 - Pooled delivery: `TaskTypePooledDelivery` and `Window` (`PooledWindowRequest`) on `CreateTaskRequest` and `TaskQuoteRequest`. A quote without a window returns `Windows` (`[]PooledQuoteWindow`): each upcoming wave with its status, times, price range and `QuoteID`. Pooled tasks carry `Window` (`*TaskPooledWindow`) and `PricingBreakdown` gains `Kind`, `MaxTotal`, `MinTotal`, `FinalTotal` and `FinalAt`. Other task types are unchanged. See [pooled delivery](https://docs.sendrelay.com.ng/concepts/pooled-delivery).

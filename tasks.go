@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"net/http"
 	"net/url"
@@ -95,6 +96,25 @@ func (s *TasksService) Get(ctx context.Context, taskID string) (*GetTaskResponse
 	}
 	out := new(GetTaskResponse)
 	return out, s.c.do(ctx, request{method: http.MethodGet, path: "/sdk/tasks/" + id}, out)
+}
+
+// GetByExternalID returns the task with the externalId you gave it (your order ID), as Get does,
+// or nil (and no error) if no task in this key's mode has it.
+func (s *TasksService) GetByExternalID(ctx context.Context, externalID string) (*GetTaskResponse, error) {
+	ref, err := pathID("externalId", externalID)
+	if err != nil {
+		return nil, err
+	}
+	out := new(GetTaskResponse)
+	err = s.c.do(ctx, request{method: http.MethodGet, path: "/sdk/tasks/by-external-id/" + ref}, out)
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound && apiErr.Code == "NOT_FOUND" {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Update changes Notes, ExternalID, or a stop's Instructions and Contact until that stop is
