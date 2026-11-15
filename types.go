@@ -10,9 +10,72 @@ const (
 	TaskTypePassengerRide   TaskType = "PASSENGER_RIDE"
 	TaskTypeFoodDelivery    TaskType = "FOOD_DELIVERY"
 	TaskTypePackageDelivery TaskType = "PACKAGE_DELIVERY"
-	TaskTypeBulkDelivery    TaskType = "BULK_DELIVERY"
-	TaskTypeErrand          TaskType = "ERRAND"
+	// TaskTypePooledDelivery goes out in a wave on set days of the week, shared with deliveries going the same way. It
+	// needs Window, one PICKUP and one DROPOFF, and no Dispatch.
+	TaskTypePooledDelivery TaskType = "POOLED_DELIVERY"
+	// Deprecated: BULK_DELIVERY was renamed POOLED_DELIVERY. Create and quote refuse it
+	// (TASK_TYPE_RENAMED); older tasks keep it.
+	TaskTypeBulkDelivery TaskType = "BULK_DELIVERY"
+	TaskTypeErrand       TaskType = "ERRAND"
 )
+
+// PooledWave names a pooled delivery wave. SendRelay may add waves; an unknown one arrives as its raw string.
+type PooledWave string
+
+const PooledWaveMidday PooledWave = "MIDDAY"
+
+// PooledWindowRequest is `window` on create and quote, POOLED_DELIVERY only. Leave Date
+// (YYYY-MM-DD, Lagos) empty for the next wave still open. Quote without one to see the upcoming waves.
+type PooledWindowRequest struct {
+	Wave PooledWave `json:"wave"`
+	Date string     `json:"date,omitempty"`
+}
+
+// TaskPooledWindow is a pooled delivery's `window` on the task: its wave and where it stands.
+type TaskPooledWindow struct {
+	Wave PooledWave `json:"wave"`
+	Date string     `json:"date"`
+	// BookBy is the last moment to book into this wave, and to cancel for free.
+	BookBy     string `json:"bookBy"`
+	PickupFrom string `json:"pickupFrom"`
+	PickupTo   string `json:"pickupTo"`
+	DeliverBy  string `json:"deliverBy"`
+	// State is WAITING, GROUPED (on a shared route) or SOLO (going alone at its maximum price).
+	State string `json:"state"`
+	// SharedWith is how many other deliveries share its route (never who they are).
+	SharedWith        *int    `json:"sharedWith"`
+	PlannedPickupAt   *string `json:"plannedPickupAt"`
+	PlannedDeliveryAt *string `json:"plannedDeliveryAt"`
+	// StopsBefore is the stops the rider makes before this delivery's next stop, while that is known.
+	StopsBefore *int `json:"stopsBefore,omitempty"`
+}
+
+// PooledQuotePricing is a wave's price range for the quoted delivery.
+type PooledQuotePricing struct {
+	Kind string `json:"kind"`
+	// MaxTotal is the most you pay, held at booking.
+	MaxTotal int64 `json:"maxTotal"`
+	// Total is the expected price, from deliveries already booked nearby.
+	Total int64 `json:"total"`
+	// MinTotal is the least you pay.
+	MinTotal int64 `json:"minTotal"`
+}
+
+// PooledQuoteWindow is an upcoming wave in a pooled quote.
+type PooledQuoteWindow struct {
+	Wave PooledWave `json:"wave"`
+	Date string     `json:"date"`
+	// Status is OPEN, or FULL (create refuses it with WAVE_FULL).
+	Status     string             `json:"status"`
+	BookBy     string             `json:"bookBy"`
+	PickupFrom string             `json:"pickupFrom"`
+	PickupTo   string             `json:"pickupTo"`
+	DeliverBy  string             `json:"deliverBy"`
+	Pricing    PooledQuotePricing `json:"pricing"`
+	// QuoteID locks this wave's price range when passed to create with the same window.
+	QuoteID   string `json:"quoteId"`
+	ExpiresAt string `json:"expiresAt"`
+}
 
 // TaskStatus is a task's lifecycle status. SendRelay adds statuses over time, so a value not listed
 // below can arrive: handle the ones you know and treat any other as still in progress.
@@ -182,6 +245,8 @@ type TaskQuoteRequest struct {
 	// Insured is insurance on the items' declared values. Leave it nil for the default, on. A pointer
 	// to false turns it off for this task: no premium, and loss or damage is not covered.
 	Insured *bool `json:"insured,omitempty"`
+	// Window (POOLED_DELIVERY only) names one wave; nil quotes every upcoming wave.
+	Window *PooledWindowRequest `json:"window,omitempty"`
 }
 
 type CreateTaskRequest struct {
@@ -196,13 +261,16 @@ type CreateTaskRequest struct {
 	Preferences    *Preferences           `json:"preferences,omitempty"`
 	CompletionCode *CompletionCodeRequest `json:"completionCode,omitempty"`
 	Dispatch       *DispatchRequest       `json:"dispatch,omitempty"`
+	// Window is required on POOLED_DELIVERY, and refused on every other type: the wave to book into.
+	Window *PooledWindowRequest `json:"window,omitempty"`
 	// Insured is insurance on the items' declared values. Leave it nil for the default, on. A pointer
 	// to false turns it off for this task; send the same value you quoted.
 	Insured *bool `json:"insured,omitempty"`
 	// RequirePhoto asks for a completion photo at every DROPOFF.
 	RequirePhoto bool `json:"requirePhoto,omitempty"`
 	// SimulationOutcome is for test keys. SEARCH_THEN_ASSIGNED and SEARCH_EXPIRED need
-	// WAIT_FOR_RIDER or SCHEDULED; RIDER_CANCELS_THEN_REASSIGNED needs OnRiderCancel FIND_ANOTHER.
+	// WAIT_FOR_RIDER or SCHEDULED; RIDER_CANCELS_THEN_REASSIGNED needs OnRiderCancel FIND_ANOTHER;
+	// POOLING_SOLO (POOLED_DELIVERY only) sends the delivery alone at its maximum price.
 	SimulationOutcome string `json:"simulationOutcome,omitempty"`
 }
 
@@ -298,6 +366,8 @@ type Task struct {
 	Dispatch       TaskDispatch        `json:"dispatch"`
 	// Requirements: the vehicles SendRelay looks for and the equipment a rider on each needs.
 	Requirements *TaskRequirements `json:"requirements,omitempty"`
+	// Window (POOLED_DELIVERY only): its wave and where it stands.
+	Window *TaskPooledWindow `json:"window,omitempty"`
 }
 
 // TaskLiveEta is how far the rider is from the stop they are heading to, from the road route
@@ -340,7 +410,14 @@ type PricingBreakdown struct {
 	PricingVehicleType string         `json:"pricingVehicleType,omitempty"`
 	SurgeMultiplier    float64        `json:"surgeMultiplier,omitempty"`
 	Route              map[string]any `json:"route,omitempty"`
-	Fees               map[string]any `json:"-"`
+	// Kind is "RANGE" on a POOLED_DELIVERY: its price is set when the rider starts the route,
+	// between MinTotal and MaxTotal (held at booking). FinalTotal and FinalAt are nil until then.
+	Kind       string         `json:"kind,omitempty"`
+	MaxTotal   *int64         `json:"maxTotal,omitempty"`
+	MinTotal   *int64         `json:"minTotal,omitempty"`
+	FinalTotal *int64         `json:"finalTotal,omitempty"`
+	FinalAt    *string        `json:"finalAt,omitempty"`
+	Fees       map[string]any `json:"-"`
 }
 
 func (p *PricingBreakdown) UnmarshalJSON(data []byte) error {
@@ -375,6 +452,8 @@ type TaskQuoteResponse struct {
 	Task            TaskQuoteRequest `json:"task"`
 	// Requirements: what the task will need, as create will store it.
 	Requirements *TaskRequirements `json:"requirements,omitempty"`
+	// Windows (POOLED_DELIVERY): the upcoming waves, each with its own price range and QuoteID.
+	Windows []PooledQuoteWindow `json:"windows,omitempty"`
 }
 
 func (q *TaskQuoteResponse) UnmarshalJSON(data []byte) error {
@@ -382,17 +461,18 @@ func (q *TaskQuoteResponse) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	var rest struct {
-		QuoteID         string            `json:"quoteId"`
-		ExpiresAt       string            `json:"expiresAt"`
-		QuoteTTLSeconds int               `json:"quoteTtlSeconds"`
-		Task            TaskQuoteRequest  `json:"task"`
-		Requirements    *TaskRequirements `json:"requirements"`
+		QuoteID         string              `json:"quoteId"`
+		ExpiresAt       string              `json:"expiresAt"`
+		QuoteTTLSeconds int                 `json:"quoteTtlSeconds"`
+		Task            TaskQuoteRequest    `json:"task"`
+		Requirements    *TaskRequirements   `json:"requirements"`
+		Windows         []PooledQuoteWindow `json:"windows"`
 	}
 	if err := json.Unmarshal(data, &rest); err != nil {
 		return err
 	}
 	q.QuoteID, q.ExpiresAt, q.QuoteTTLSeconds, q.Task = rest.QuoteID, rest.ExpiresAt, rest.QuoteTTLSeconds, rest.Task
-	q.Requirements = rest.Requirements
+	q.Requirements, q.Windows = rest.Requirements, rest.Windows
 	return nil
 }
 
@@ -408,6 +488,9 @@ func (q TaskQuoteResponse) MarshalJSON() ([]byte, error) {
 	out["quoteId"], out["expiresAt"], out["quoteTtlSeconds"], out["task"] = q.QuoteID, q.ExpiresAt, q.QuoteTTLSeconds, q.Task
 	if q.Requirements != nil {
 		out["requirements"] = q.Requirements
+	}
+	if q.Windows != nil {
+		out["windows"] = q.Windows
 	}
 	return json.Marshal(out)
 }
