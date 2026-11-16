@@ -111,6 +111,8 @@ type Client struct {
 	Events *EventsService
 	// Claims files and follows insurance claims on a task.
 	Claims *ClaimsService
+	// Errands reads the errand price list and limits.
+	Errands *ErrandsService
 }
 
 // NewClient creates a client for a live (sk_live_...) or test (sk_test_...) API key.
@@ -143,6 +145,7 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Presence = &PresenceService{c}
 	c.Events = &EventsService{c}
 	c.Claims = &ClaimsService{c}
+	c.Errands = &ErrandsService{c}
 	return c, nil
 }
 

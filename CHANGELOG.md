@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.15.0 — 2026-11-16
+
+- Errands with work stages: `TaskTypeErrand` takes `StageTypePurchase`, `StageTypePayment`, `StageTypeQueue`, `StageTypeInspection` and `StageTypeCustom` beside pickups and drop-offs, with their fields on `Stage` (`Reference`, `ExpectedMinutes`, `MaxMinutes`, `OpeningHours`, `PurchaseItems`, `SpendLimit`, `PayWith`, `Payee`, `Amount`, `Questions`, `Effort`, `Simulate`) and, on responses, `Result`, `Reason`, `Approval` and `PlannedArrivalAt`. `relay.Errand.Queue`, `Purchase`, `Payment`, `Inspection`, `Custom`, `Pickup` and `Dropoff` build them; `relay.String`, `relay.Int` and `relay.Int64` help with optional fields. See [errands](https://docs.sendrelay.com.ng/errands).
+- `PriceLimit` and `Approvals` on `CreateTaskRequest` and `TaskQuoteRequest`. An errand quote fills `Errand` (`ErrandQuotePricing`), `Schedule`, `Warnings` and `Stages`; `CreateTaskResponse` gains `Errand`, `Schedule`, `Warnings` and `Approvals`; `Task` gains `Errand`, `Approvals` and `PriceLimit`.
+- `client.Errands.Options`, `Tasks.Approvals`, `Tasks.DecideApproval`, `Tasks.SkipStage` and `Tasks.ViewFile`. `UpdateTaskStage` gains `Items` and `Questions`; `TrackingLinkRequest` gains `CanAnswer`.
+- Other task types are unchanged.
+
 ## 1.14.0 — 2026-11-15
 
 - `Tasks.GetByExternalID(ctx, externalID)`: the task with the `ExternalID` you gave it at create, as `Get` returns it, or `nil` with no error if none has it (`GET /v1/sdk/tasks/by-external-id/{externalId}`). The reference is percent-encoded, so it can hold a slash.

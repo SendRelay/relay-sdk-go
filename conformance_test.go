@@ -62,6 +62,9 @@ type fixture struct {
 		Query          map[string]any  `json:"query"`
 		IdempotencyKey string          `json:"idempotencyKey"`
 		ExternalID     string          `json:"externalId"`
+		ApprovalID     string          `json:"approvalId"`
+		StageIndex     int             `json:"stageIndex"`
+		FileURL        string          `json:"fileUrl"`
 	} `json:"input"`
 	Exchanges []exchange `json:"exchanges"`
 	Expect    struct {
@@ -223,6 +226,21 @@ var bindings = map[string]func(ctx context.Context, c *Client, f fixture) (any, 
 	},
 	"claims.withdraw": func(ctx context.Context, c *Client, f fixture) (any, error) {
 		return c.Claims.Withdraw(ctx, f.Input.TaskID)
+	},
+	"errands.options": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Errands.Options(ctx)
+	},
+	"tasks.approvals": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.Approvals(ctx, f.Input.TaskID)
+	},
+	"tasks.decideApproval": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.DecideApproval(ctx, f.Input.TaskID, f.Input.ApprovalID, decode[ApprovalDecisionRequest](f.Input.Body))
+	},
+	"tasks.skipStage": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.SkipStage(ctx, f.Input.TaskID, f.Input.StageIndex)
+	},
+	"tasks.viewFile": func(ctx context.Context, c *Client, f fixture) (any, error) {
+		return c.Tasks.ViewFile(ctx, f.Input.TaskID, f.Input.FileURL)
 	},
 }
 

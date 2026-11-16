@@ -156,6 +156,40 @@ type Stage struct {
 	ArrivedAt *string `json:"arrivedAt,omitempty"`
 	// WaitSeconds (response) runs from ArrivedAt to CompletedAt; information only.
 	WaitSeconds *int `json:"waitSeconds,omitempty"`
+
+	// Errands (TaskType ERRAND). See ErrandsService.Options for each type's fees and default minutes.
+
+	// Reference is your name for the stage, unique in the task; what a PURCHASE buys is carried under it.
+	Reference *string `json:"reference,omitempty"`
+	// ExpectedMinutes on site; MaxMinutes is the most that is paid for, up to 240.
+	ExpectedMinutes *int          `json:"expectedMinutes,omitempty"`
+	MaxMinutes      *int          `json:"maxMinutes,omitempty"`
+	OpeningHours    *OpeningHours `json:"openingHours,omitempty"`
+	// PurchaseItems is a PURCHASE's shopping list, sent and read as "items".
+	PurchaseItems []PurchaseItem `json:"-"`
+	// IfUnavailable (PURCHASE, default SKIP): SKIP, SIMILAR or ASK.
+	IfUnavailable string `json:"ifUnavailable,omitempty"`
+	// SpendLimit (PURCHASE and PAYMENT) is the most the rider may spend here, in kobo.
+	SpendLimit *int64 `json:"spendLimit,omitempty"`
+	// PayWith (PURCHASE and PAYMENT, default MERCHANT_TRANSFER): MERCHANT_TRANSFER or PREPAID.
+	PayWith  string           `json:"payWith,omitempty"`
+	Merchant *MerchantAccount `json:"merchant,omitempty"`
+	// Payee, Amount (the bill you expect, in kobo) and BillReference: PAYMENT.
+	Payee         *string `json:"payee,omitempty"`
+	Amount        *int64  `json:"amount,omitempty"`
+	BillReference *string `json:"billReference,omitempty"`
+	// Questions: INSPECTION (required) and CUSTOM (optional).
+	Questions []ErrandQuestion `json:"questions,omitempty"`
+	// Effort (CUSTOM, required): S, M or L; it sets the stage fee.
+	Effort string `json:"effort,omitempty"`
+	// Simulate is for test keys only.
+	Simulate *StageSimulate `json:"simulate,omitempty"`
+	// Result (response) is what came back from a work stage; Reason why it FAILED or was SKIPPED.
+	Result *StageResult `json:"result,omitempty"`
+	Reason *string      `json:"reason,omitempty"`
+	// Approval (response) is the stage's latest question from the rider.
+	Approval         *Approval `json:"approval,omitempty"`
+	PlannedArrivalAt *string   `json:"plannedArrivalAt,omitempty"`
 }
 
 // StageContact is who to call at a stop.
@@ -247,6 +281,10 @@ type TaskQuoteRequest struct {
 	Insured *bool `json:"insured,omitempty"`
 	// Window (POOLED_DELIVERY only) names one wave; nil quotes every upcoming wave.
 	Window *PooledWindowRequest `json:"window,omitempty"`
+	// PriceLimit (errands) is the most you will pay, in kobo; a maximum above it is a 422 PRICE_LIMIT_EXCEEDED.
+	PriceLimit *int64 `json:"priceLimit,omitempty"`
+	// Approvals (errands) is how long the rider waits for your answer and what happens if nobody answers.
+	Approvals *ApprovalsPolicy `json:"approvals,omitempty"`
 }
 
 type CreateTaskRequest struct {
@@ -272,6 +310,10 @@ type CreateTaskRequest struct {
 	// WAIT_FOR_RIDER or SCHEDULED; RIDER_CANCELS_THEN_REASSIGNED needs OnRiderCancel FIND_ANOTHER;
 	// POOLING_SOLO (POOLED_DELIVERY only) sends the delivery alone at its maximum price.
 	SimulationOutcome string `json:"simulationOutcome,omitempty"`
+	// PriceLimit (errands) is the most you will pay, in kobo; a maximum above it is a 422 PRICE_LIMIT_EXCEEDED.
+	PriceLimit *int64 `json:"priceLimit,omitempty"`
+	// Approvals (errands) is how long the rider waits for your answer and what happens if nobody answers.
+	Approvals *ApprovalsPolicy `json:"approvals,omitempty"`
 }
 
 // SimulateAdvanceResponse is the reply to Tasks.SimulateAdvance (test keys).
@@ -368,6 +410,11 @@ type Task struct {
 	Requirements *TaskRequirements `json:"requirements,omitempty"`
 	// Window (POOLED_DELIVERY only): its wave and where it stands.
 	Window *TaskPooledWindow `json:"window,omitempty"`
+	// Errand (errands with work stages): how far it got. Pricing then also has service, spend,
+	// soFar and, once ended, the itemised final bill with its refund.
+	Errand     *ErrandSummary   `json:"errand,omitempty"`
+	Approvals  *ApprovalsPolicy `json:"approvals,omitempty"`
+	PriceLimit *int64           `json:"priceLimit,omitempty"`
 }
 
 // TaskLiveEta is how far the rider is from the stop they are heading to, from the road route
@@ -454,6 +501,13 @@ type TaskQuoteResponse struct {
 	Requirements *TaskRequirements `json:"requirements,omitempty"`
 	// Windows (POOLED_DELIVERY): the upcoming waves, each with its own price range and QuoteID.
 	Windows []PooledQuoteWindow `json:"windows,omitempty"`
+	// Errands with work stages: Total is the most it can cost and Errand the range; Schedule is when
+	// the rider is expected at each stop, Warnings anything worth a look, Stages the stages as quoted.
+	Errand          *ErrandQuotePricing `json:"-"`
+	Schedule        *TaskSchedule       `json:"schedule,omitempty"`
+	Warnings        []ErrandWarning     `json:"warnings,omitempty"`
+	Stages          []Stage             `json:"stages,omitempty"`
+	ErrandApprovals *ApprovalsPolicy    `json:"approvals,omitempty"`
 }
 
 func (q *TaskQuoteResponse) UnmarshalJSON(data []byte) error {
@@ -467,12 +521,18 @@ func (q *TaskQuoteResponse) UnmarshalJSON(data []byte) error {
 		Task            TaskQuoteRequest    `json:"task"`
 		Requirements    *TaskRequirements   `json:"requirements"`
 		Windows         []PooledQuoteWindow `json:"windows"`
+		Pricing         *ErrandQuotePricing `json:"pricing"`
+		Schedule        *TaskSchedule       `json:"schedule"`
+		Warnings        []ErrandWarning     `json:"warnings"`
+		Stages          []Stage             `json:"stages"`
+		Approvals       *ApprovalsPolicy    `json:"approvals"`
 	}
 	if err := json.Unmarshal(data, &rest); err != nil {
 		return err
 	}
 	q.QuoteID, q.ExpiresAt, q.QuoteTTLSeconds, q.Task = rest.QuoteID, rest.ExpiresAt, rest.QuoteTTLSeconds, rest.Task
 	q.Requirements, q.Windows = rest.Requirements, rest.Windows
+	q.Errand, q.Schedule, q.Warnings, q.Stages, q.ErrandApprovals = rest.Pricing, rest.Schedule, rest.Warnings, rest.Stages, rest.Approvals
 	return nil
 }
 
@@ -492,6 +552,21 @@ func (q TaskQuoteResponse) MarshalJSON() ([]byte, error) {
 	if q.Windows != nil {
 		out["windows"] = q.Windows
 	}
+	if q.Errand != nil {
+		out["pricing"] = q.Errand
+	}
+	if q.Schedule != nil {
+		out["schedule"] = q.Schedule
+	}
+	if q.Warnings != nil {
+		out["warnings"] = q.Warnings
+	}
+	if q.Stages != nil {
+		out["stages"] = q.Stages
+	}
+	if q.ErrandApprovals != nil {
+		out["approvals"] = q.ErrandApprovals
+	}
 	return json.Marshal(out)
 }
 
@@ -503,6 +578,12 @@ type CreateTaskResponse struct {
 	Wallet      map[string]any   `json:"wallet,omitempty"`
 	Payment     map[string]any   `json:"payment,omitempty"`
 	Simulation  map[string]any   `json:"simulation,omitempty"`
+	// Errands with work stages: the range held, when each stop is expected, anything worth a look,
+	// and the answer policy in force.
+	Errand    *ErrandQuotePricing `json:"errand,omitempty"`
+	Schedule  *TaskSchedule       `json:"schedule,omitempty"`
+	Warnings  []ErrandWarning     `json:"warnings,omitempty"`
+	Approvals *ApprovalsPolicy    `json:"approvals,omitempty"`
 }
 
 type ListTasksParams struct {
@@ -807,11 +888,15 @@ type UpdateTaskRequest struct {
 	Stages     []UpdateTaskStage `json:"stages,omitempty"`
 }
 
-// UpdateTaskStage edits one stop until it is completed.
+// UpdateTaskStage edits one stop until it is completed. On an errand, Items (a PURCHASE's list)
+// and Questions change until the rider reaches the stop; a change that moves the price is a 422
+// EDIT_MOVES_PRICE.
 type UpdateTaskStage struct {
-	Index        int           `json:"index"`
-	Instructions *string       `json:"instructions,omitempty"`
-	Contact      *StageContact `json:"contact,omitempty"`
+	Index        int              `json:"index"`
+	Instructions *string          `json:"instructions,omitempty"`
+	Contact      *StageContact    `json:"contact,omitempty"`
+	Items        []PurchaseItem   `json:"items,omitempty"`
+	Questions    []ErrandQuestion `json:"questions,omitempty"`
 }
 
 // UpdateTaskResponse is the task after an update.
@@ -822,6 +907,8 @@ type UpdateTaskResponse struct {
 // TrackingLinkRequest optionally limits a link to one DROPOFF.
 type TrackingLinkRequest struct {
 	StageIndex *int `json:"stageIndex,omitempty"`
+	// CanAnswer (errands) lets the page answer the rider's questions that fit inside the held maximum.
+	CanAnswer bool `json:"canAnswer,omitempty"`
 }
 
 // TrackingLinkResponse is a hosted tracking page to send your customer.
